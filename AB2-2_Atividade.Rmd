@@ -1,0 +1,337 @@
+---
+title: "Atividade AB2-2"
+author: "Davi Celestino dos Santos Barbosa"
+date: "2025-11-17"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Contexto da base de dados
+
+A base de dados escolhida é criada a partir de uma instituição de ensino superior (adquirido de diversas bases de dados distintas) relacionado a alunos matriculados em diferentes cursos de graduação, como agronomia, design, educação, enfermagem, jornalismo, administração, serviço social e tecnologias. O conjunto de dados original inclui informações conhecidas no momento da matrícula do aluno (trajetória acadêmica, dados demográficos e fatores socioeconômicos) e o desempenho acadêmico dos alunos ao final do primeiro e segundo semestres.
+
+A base foi alterada para otimizar a eficiência da análise. Foram removidas no total 23 colunas de informações consideradas redundantes ou irrelevantes. Os nomes das colunas restantes, bem como os valores da variável 'Resultado', foram traduzidos para o português, colunas que utilizavam codificação numérica para representar categorias (como a coluna 'Gênero', que usava 0 e 1) foram convertidas para seus respectivos rótulos descritivos ('Homem' e 'Mulher'), tornando a base mais legível.
+
+Nesta atividade AB2-2, utilizaremos essa mesma base para aplicar conceitos de inferência estatística: intervalos de confiança, testes de hipóteses, comparação de proporções, ANOVA, correlação, regressão e transformação de dados.
+
+### Importar a base de dados
+
+```{r}
+setwd("C:\\Projetos\\data-analysis-with-R\\data")
+
+df <- read.csv("data_ADAPTED.csv", sep = ",", dec = ".", header = TRUE)
+
+# Ajustando tipos das variáveis categóricas
+df$Curso <- as.factor(df$Curso)
+df$Deslocado <- as.factor(df$Deslocado)
+df$Necessidades.educacionais.especiais <- as.factor(df$Necessidades.educacionais.especiais)
+df$Devedor <- as.factor(df$Devedor)
+df$Genero <- as.factor(df$Genero)
+df$Bolsista <- as.factor(df$Bolsista)
+df$Internacional <- as.factor(df$Internacional)
+df$Resultado <- as.factor(df$Resultado)
+
+str(df)
+summary(df)
+```
+
+
+## 1. Intervalo de confiança para a média
+
+Neste item será construído um intervalo de confiança de 98% para a média da variável numérica **Média das notas do primeiro semestre** (`Media.das.notas.do.primeiro.semestre`).
+
+```{r}
+nota_media <- df$Media.das.notas.do.primeiro.semestre
+nota_media <- na.omit(nota_media)
+
+n1 <- length(nota_media)
+media1 <- mean(nota_media)
+dp1 <- sd(nota_media)
+erro_padrao1 <- dp1 / sqrt(n1)
+
+alpha1 <- 0.02                 # 98% de confiança
+t_critico1 <- qt(1 - alpha1/2, df = n1 - 1)
+
+IC1_inferior <- media1 - t_critico1 * erro_padrao1
+IC1_superior <- media1 + t_critico1 * erro_padrao1
+
+c(IC_inferior = IC1_inferior,
+  media = media1,
+  IC_superior = IC1_superior)
+```
+
+O vetor acima apresenta o intervalo de confiança de 98% para a média da variável **Média das notas do primeiro semestre**. Em linguagem interpretativa, dizemos que, com 98% de confiança, a média populacional dessa variável está contida entre o limite inferior e o limite superior encontrados.
+
+
+
+## 2. Teste de hipótese para a média (uma amostra)
+
+Agora, vamos testar se a média da mesma variável **Média das notas do primeiro semestre** é igual a um valor de referência hipotético. Vamos considerar como hipótese nula que a média populacional seja 12 pontos.
+
+- Hipóteses:
+
+\(H_0: \mu = 12\)  
+\(H_1: \mu \neq 12\)
+
+- Nível de significância: 5% (\(\alpha = 0{,}05\)).
+
+```{r}
+media_notas <- df$Media.das.notas.do.primeiro.semestre
+media_notas <- na.omit(media_notas)
+
+mu0 <- 12      # valor de referência
+alpha2 <- 0.05
+
+teste_media <- t.test(media_notas, mu = mu0, conf.level = 1 - alpha2)
+
+teste_media
+```
+
+O teste t acima compara a média amostral com o valor de referência 12. Como o p-valor retornado é muito menor que 0,05, rejeitamos \(H_0\) ao nível de 5% e concluímos que a média da **Média das notas do primeiro semestre** é significativamente diferente de 12 (na base utilizada, a média amostral é menor que 12).
+
+
+
+## 3. Teste de hipótese para diferença de médias (duas amostras)
+
+Neste item, comparamos as médias da variável **Média das notas do primeiro semestre** entre dois grupos: **bolsistas** e **não bolsistas**, representados pela variável categórica `Bolsista` (com categorias "Sim" e "Nao").
+
+- Variável numérica: `Media.das.notas.do.primeiro.semestre`  
+- Grupos: `Bolsista` = "Sim" e "Nao"  
+- Nível de significância: 4% (\(\alpha = 0{,}04\)).
+
+Hipóteses:
+
+\(H_0: \mu_{bolsistas} = \mu_{nao\_bolsistas}\)  
+\(H_1: \mu_{bolsistas} \neq \mu_{nao\_bolsistas}\)
+
+```{r}
+dados_t3 <- subset(df, !is.na(Media.das.notas.do.primeiro.semestre) & !is.na(Bolsista))
+
+# Médias, desvios-padrão e tamanhos de cada grupo
+tapply(dados_t3$Media.das.notas.do.primeiro.semestre, dados_t3$Bolsista, mean)
+tapply(dados_t3$Media.das.notas.do.primeiro.semestre, dados_t3$Bolsista, sd)
+tapply(dados_t3$Media.das.notas.do.primeiro.semestre, dados_t3$Bolsista, length)
+
+# Teste de homogeneidade das variâncias (F de variâncias)
+var.test(Media.das.notas.do.primeiro.semestre ~ Bolsista, data = dados_t3)
+
+# Teste t para duas amostras independentes (Welch)
+teste_t3 <- t.test(Media.das.notas.do.primeiro.semestre ~ Bolsista, data = dados_t3, var.equal = FALSE, conf.level = 0.96)
+teste_t3
+```
+
+O teste t de duas amostras indica um p-valor extremamente pequeno (bem abaixo de 4%), de forma que rejeitamos \(H_0\). Assim, concluímos que há evidência de diferença significativa entre as médias de desempenho de bolsistas e não bolsistas, sendo que os bolsistas apresentam, em média, notas mais altas no primeiro semestre.
+
+
+
+## 4. Teste de hipótese para proporções (duas amostras)
+
+Aqui, vamos comparar a **proporção de sucesso** entre dois grupos. Definimos como **sucesso** o aluno obter o resultado `"Graduado"` na variável `Resultado`. Os grupos comparados serão novamente **bolsistas** e **não bolsistas** (`Bolsista` = "Sim" e "Nao").
+
+- Sucesso: `Resultado == "Graduado"`  
+- Grupos: `Bolsista` = "Sim" e "Nao"  
+- Nível de significância: 5% (\(\alpha = 0{,}05\)).
+
+Hipóteses:
+
+\(H_0: p_{bolsistas} = p_{nao\_bolsistas}\)  
+\(H_1: p_{bolsistas} \neq p_{nao\_bolsistas}\)
+
+```{r}
+# Contagem de sucessos (Graduado) em cada grupo
+sucessos <- c(
+  sum(df$Resultado == "Graduado" & df$Bolsista == "Nao"),
+  sum(df$Resultado == "Graduado" & df$Bolsista == "Sim")
+)
+
+# Tamanho de cada grupo
+totais <- c(sum(df$Bolsista == "Nao"), sum(df$Bolsista == "Sim"))
+
+sucessos
+totais
+
+# Proporções amostrais
+proporcoes <- sucessos / totais
+proporcoes
+
+# Teste de proporções (duas amostras)
+teste_prop <- prop.test(sucessos, totais, conf.level = 0.95, correct = FALSE)
+teste_prop
+```
+
+O teste de proporções indica um p-valor muito pequeno (menor que 0,05), levando à rejeição de \(H_0\). Logo, concluímos que a proporção de alunos graduados é significativamente diferente entre bolsistas e não bolsistas, sendo maior entre os bolsistas.
+
+
+
+## 5. ANOVA de um fator
+
+Neste item, analisamos se a média da variável **Média das notas do primeiro semestre** difere entre os grupos definidos pela variável categórica `Resultado` (por exemplo, "Desistente", "Graduado" e "Matriculado").
+
+- Variável numérica: `Media.das.notas.do.primeiro.semestre`  
+- Fator: `Resultado` (três categorias)  
+- Nível de significância: 5%.
+
+Hipóteses:
+
+\(H_0: \mu_{Desistente} = \mu_{Graduado} = \mu_{Matriculado}\)  
+\(H_1:\) pelo menos uma das médias difere das demais.
+
+### Verificação dos pressupostos
+
+```{r}
+dados_q5 <- subset(df, !is.na(Media.das.notas.do.primeiro.semestre) & !is.na(Resultado))
+
+# Teste de normalidade (Shapiro-Wilk) em uma amostra de até 500 observações de cada grupo
+set.seed(123)
+
+by(dados_q5$Media.das.notas.do.primeiro.semestre, dados_q5$Resultado, function(x) {
+  x_amostra <- if (length(x) > 500) sample(x, 500) else x
+  shapiro.test(x_amostra)
+})
+
+# Teste de homogeneidade de variâncias (Bartlett)
+bartlett.test(Media.das.notas.do.primeiro.semestre ~ Resultado, data = dados_q5)
+```
+
+Em amostras grandes, o teste de normalidade tende a ser muito sensível, rejeitando a normalidade mesmo para desvios pequenos. Ainda assim, a ANOVA é relativamente robusta a pequenas violações quando os tamanhos amostrais são grandes e semelhantes.
+
+### Ajuste da ANOVA
+
+```{r}
+anova_q5 <- aov(Media.das.notas.do.primeiro.semestre ~ Resultado,
+                data = dados_q5)
+summary(anova_q5)
+
+# Médias por grupo
+tapply(dados_q5$Media.das.notas.do.primeiro.semestre, dados_q5$Resultado, mean)
+
+# Boxplot para visualizar as distribuições por grupo
+boxplot(Media.das.notas.do.primeiro.semestre ~ Resultado, data = dados_q5, main = "Média das notas do primeiro semestre por resultado", xlab = "Resultado", ylab = "Média das notas do primeiro semestre", col = c("red", "blue", "green"))
+```
+
+O resultado da ANOVA apresenta um p-valor extremamente pequeno (bem menor que 0,05), o que leva à rejeição de \(H_0\). Portanto, concluímos que há diferenças significativas entre as médias de desempenho dos grupos de `Resultado`. As médias mostram, em geral, que alunos **Graduados** têm média mais alta, seguidos pelos **Matriculados**, enquanto os **Desistentes** apresentam as menores médias.
+
+
+
+## 6. Correlação entre duas variáveis numéricas
+
+Vamos estudar a correlação entre as variáveis numéricas:
+
+- `Nota.de.admissao` (nota utilizada para admissão)  
+- `Media.das.notas.do.primeiro.semestre` (desempenho no 1º semestre).
+
+Hipóteses do teste de correlação:
+
+\(H_0: \rho = 0\) (não há correlação linear)  
+\(H_1: \rho \neq 0\) (há correlação linear diferente de zero).
+
+```{r}
+dados_q6 <- subset(df, !is.na(Nota.de.admissao) & !is.na(Media.das.notas.do.primeiro.semestre))
+
+# Gráfico de dispersão
+plot(dados_q6$Nota.de.admissao, dados_q6$Media.das.notas.do.primeiro.semestre, pch = 19, col = "blue", xlab = "Nota de admissão", ylab = "Média das notas do primeiro semestre", main = "Dispersão: nota de admissão x desempenho")
+
+# Coeficiente de correlação de Pearson
+r_pearson <- cor(dados_q6$Nota.de.admissao, dados_q6$Media.das.notas.do.primeiro.semestre)
+r_pearson
+
+# Teste de hipótese para correlação
+teste_cor <- cor.test(dados_q6$Nota.de.admissao, dados_q6$Media.das.notas.do.primeiro.semestre)
+teste_cor
+```
+
+O coeficiente de correlação de Pearson é positivo, mas de pequena magnitude (próximo de 0,07), indicando uma associação linear **fraca** entre a nota de admissão e o desempenho no primeiro semestre. Devido ao grande tamanho amostral, o p-valor do teste é muito pequeno, o que leva à rejeição de \(H_0\), mas o valor de \(r\) mostra que, na prática, a relação linear é fraca.
+
+
+
+## 7. Regressão linear simples
+
+Usando as mesmas duas variáveis numéricas do item anterior, ajustaremos um modelo de regressão linear simples, considerando:
+
+- Variável resposta (Y): `Media.das.notas.do.primeiro.semestre`  
+- Variável preditora (X): `Nota.de.admissao`.
+
+Modelo: \(Y = \beta_0 + \beta_1 X + \varepsilon\).
+
+```{r}
+modelo_q7 <- lm(Media.das.notas.do.primeiro.semestre ~ Nota.de.admissao, data = df)
+
+summary(modelo_q7)
+
+# Resíduos do modelo
+residuos_q7 <- residuals(modelo_q7)
+
+# Teste de normalidade dos resíduos (em uma amostra)
+set.seed(123)
+residuos_amostra <- if (length(residuos_q7) > 500) sample(residuos_q7, 500) else residuos_q7
+shapiro.test(residuos_amostra)
+
+# Gráfico de dispersão com a reta ajustada
+plot(df$Nota.de.admissao, df$Media.das.notas.do.primeiro.semestre, pch = 19, col = "blue", xlab = "Nota de admissão", ylab = "Média das notas do primeiro semestre", main = "Regressão linear: desempenho ~ nota de admissão")
+abline(modelo_q7, col = "red", lwd = 2)
+```
+
+O resumo do modelo apresenta os coeficientes estimados:
+
+- O **intercepto** (\(\beta_0\)) representa o valor esperado da média das notas do primeiro semestre quando a nota de admissão é zero (interpretação mais matemática do que prática, já que esse valor de X não ocorre na base).  
+- O **coeficiente angular** (\(\beta_1\)) é positivo e pequeno: indica que, a cada aumento de 1 ponto na `Nota.de.admissao`, a média das notas do primeiro semestre aumenta, em média, cerca de algumas centésimas de ponto.  
+- O **coeficiente de determinação** (\(R^2\)) é bem baixo (cerca de 0,5%), mostrando que a nota de admissão explica apenas uma pequena parte da variabilidade do desempenho no primeiro semestre.  
+- O teste de normalidade dos resíduos, em uma amostra, pode indicar pequenas violações de normalidade, mas, em geral, o ajuste é utilizado mais para descrever a tendência média do que para previsão precisa.
+
+
+
+## 8. Transformação de dados
+
+Por fim, vamos escolher uma variável numérica que não apresenta distribuição aproximadamente normal e aplicar uma transformação. Usaremos novamente a variável `Media.das.notas.do.primeiro.semestre`, que possui muitos valores concentrados em determinadas faixas (incluindo zeros), gerando assimetria.
+
+### Verificando a normalidade antes da transformação
+
+```{r}
+set.seed(123)
+
+variavel_q8 <- na.omit(df$Media.das.notas.do.primeiro.semestre)
+
+# Teste de normalidade em uma amostra
+amostra_q8 <- if (length(variavel_q8) > 500) sample(variavel_q8, 500) else variavel_q8
+shapiro.test(amostra_q8)
+
+# Histograma na escala original
+hist(variavel_q8, main = "Histograma - média das notas (original)", xlab = "Média das notas do primeiro semestre", col = "blue")
+```
+
+Os resultados do teste de Shapiro-Wilk e o histograma indicam que a distribuição da variável original não é bem ajustada por uma normal, apresentando assimetria.
+
+### Aplicando a transformação logarítmica
+
+Como os valores são não negativos, aplicaremos uma transformação logarítmica do tipo \(\log(x + 1)\) para evitar problemas com o logaritmo de zero.
+
+```{r}
+variavel_log <- log(variavel_q8 + 1)
+
+# Teste de normalidade após a transformação (em amostra)
+amostra_log <- if (length(variavel_log) > 500) sample(variavel_log, 500) else variavel_log
+shapiro.test(amostra_log)
+
+# Histograma após a transformação
+hist(variavel_log, main = "Histograma - log(média + 1)", xlab = "log(Média das notas + 1)", col = "blue")
+```
+
+Após a transformação, o histograma tende a ficar mais simétrico e o teste de normalidade costuma indicar um ajuste um pouco melhor à distribuição normal, embora não perfeito, o que já é esperado em dados reais.
+
+### Revertendo a transformação para interpretar na escala original
+
+```{r}
+media_original <- mean(variavel_q8)
+media_log <- mean(variavel_log)
+media_revertida <- exp(media_log) - 1
+
+c(media_original = media_original, media_transformada = media_log, media_revertida = media_revertida)
+```
+
+A média na escala transformada (`media_transformada`) pode ser revertida para a escala original pela função inversa da transformação: \(x = e^{\log(x+1)} - 1\). A média revertida (`media_revertida`) fica próxima da média original, permitindo interpretar os resultados em termos da escala de notas original.
